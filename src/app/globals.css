@@ -1,0 +1,221 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy-950: #06142b;
+  --color-navy-900: #0a1f3d;
+  --color-navy-800: #12305a;
+  --color-navy-700: #1b4073;
+  --color-navy-600: #2a5490;
+  --color-ink: #0f1b2d;
+  --color-slate-600: #475871;
+  --color-slate-500: #55677f;
+  --color-slate-400: #8a99b0;
+  --color-paper: #f4f7fb;
+  --color-line: #d9e2ee;
+  --color-line-strong: #b9c7da;
+  --color-blue-700: #184c99;
+  --color-blue-600: #1f5fbf;
+  --color-blue-500: #2f73d6;
+  --color-blue-100: #e3edfb;
+  --color-teal-700: #0b6f6b;
+  --color-teal-600: #0e8f8a;
+  --color-teal-500: #14a59f;
+  --color-teal-100: #ddf3f1;
+  --color-amber-700: #8f5c12;
+  --color-amber-600: #b7791f;
+  --color-amber-100: #fbf0d9;
+  --color-red-700: #8f1b12;
+  --color-red-600: #b42318;
+  --color-red-100: #fbe4e1;
+  --color-green-700: #166039;
+  --color-green-600: #1e7b4f;
+  --color-green-100: #dff3e8;
+  --font-sans: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Inter Variable", "Inter", system-ui, sans-serif; /* headings and figures now use Inter, like the reference design */
+  --font-display: "Instrument Serif", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-deva: "Noto Sans Devanagari", "IBM Plex Sans", sans-serif;
+
+  /* Shape and elevation: one radius scale, two shadows. */
+  --radius-card: 1.375rem;
+  --radius-control: 0.75rem;
+  --shadow-card: 0 1px 2px rgb(10 31 61 / 0.05), 0 0 0 1px rgb(10 31 61 / 0.015);
+  --shadow-pop: 0 10px 28px -8px rgb(10 31 61 / 0.22), 0 2px 6px rgb(10 31 61 / 0.08);
+
+  /* Short, purposeful motion. Disabled globally under prefers-reduced-motion (below). */
+  --animate-pop-in: pop-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-slide-in-left: slide-in-left 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  @keyframes pop-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slide-in-left { from { transform: translateX(-100%); } to { transform: none; } }
+}
+
+html { scroll-behavior: smooth; }
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3 { font-family: var(--font-sans); letter-spacing: -0.02em; font-weight: 650; }
+::selection { background: var(--color-teal-100); color: var(--color-navy-900); }
+* { scrollbar-color: var(--color-line-strong) transparent; }
+
+/* Serif numerals with lining, tabular figures: figures line up in ledgers and tables. */
+.num { font-family: var(--font-sans); font-weight: 620; letter-spacing: -0.02em; font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "lnum", "tnum"; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+:focus-visible { outline: 2px solid var(--color-teal-500); outline-offset: 2px; border-radius: 4px; }
+
+@keyframes tile-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+.tile-in { animation: tile-in 420ms cubic-bezier(.2,.7,.2,1) backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Load-in effects are CSS-only so content never depends on JavaScript to become visible. */
+@keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.fade-up { animation: fade-up 320ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@keyframes bar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.bar-grow { transform-origin: left; animation: bar-grow 560ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+
+/* Links inside running text must not rely on colour alone (WCAG 1.4.1) */
+main p a:not([class*="no-underline"]) { text-decoration-line: underline; text-underline-offset: 2px; }
+
+
+/* =====================================================================================================
+   Theme and interaction layer. Light is the original palette. Dark remaps the same design tokens, so
+   components do not change; only a few surface and primary-action classes need explicit dark rules.
+   ===================================================================================================== */
+:root {
+  --chart-axis: #62748e; --chart-grid: #e6edf5; --chart-ref: #0a1f3d; --chart-open: #c5d1e2;
+  --spot-color: rgba(47, 115, 214, 0.10); --spot-edge: rgba(47, 115, 214, 0.45); --glow-color: rgba(47, 115, 214, 0.10);
+}
+html.dark {
+  color-scheme: dark;
+  --color-paper: #0b0b11; --color-ink: #f2f2f5;
+  --color-line: rgba(255, 255, 255, 0.10); --color-line-strong: rgba(255, 255, 255, 0.18);
+  --color-slate-700: #d4d6de; --color-slate-600: #b9bcc8; --color-slate-500: #9b9faf; --color-slate-400: #7d8192;
+  --color-blue-700: #a6c1ff; --color-blue-600: #7ba6ff; --color-blue-100: rgba(96, 140, 255, 0.17);
+  --color-teal-700: #6ff0dc; --color-teal-100: rgba(45, 212, 191, 0.15);
+  --color-amber-700: #f6c971; --color-amber-100: rgba(247, 176, 56, 0.15);
+  --color-red-700: #ff9a90; --color-red-100: rgba(255, 92, 80, 0.16);
+  --color-green-700: #72e5ad; --color-green-100: rgba(52, 211, 153, 0.15);
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.035), 0 14px 40px -18px rgba(0, 0, 0, 0.65);
+  --shadow-pop: 0 18px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --chart-axis: #93a5c2; --chart-grid: rgba(140, 165, 215, 0.14); --chart-ref: #c9d6ee; --chart-open: rgba(140, 165, 215, 0.28);
+  --spot-color: rgba(110, 150, 255, 0.15); --spot-edge: rgba(130, 170, 255, 0.65); --glow-color: rgba(90, 130, 255, 0.17);
+}
+
+/* Atmosphere: soft blue and violet light behind everything, like a lit control room. */
+body::before { content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background: radial-gradient(55% 45% at 0% 0%, rgba(47, 115, 214, 0.10), transparent 60%), radial-gradient(45% 40% at 100% 0%, rgba(20, 165, 159, 0.07), transparent 60%); }
+html.dark body { background: #07070b; }
+html.dark body::before { background:
+  radial-gradient(60% 50% at 6% -4%, rgba(47, 90, 214, 0.42), transparent 62%),
+  radial-gradient(50% 45% at 96% 6%, rgba(104, 72, 232, 0.30), transparent 62%),
+  radial-gradient(70% 55% at 55% 112%, rgba(14, 143, 138, 0.24), transparent 62%),
+  linear-gradient(115deg, transparent 36%, rgba(70, 130, 255, 0.10) 47%, transparent 58%); }
+
+/* Cursor glow: a soft light that follows the pointer. Fine pointers only; hidden for reduced motion. */
+.cursor-glow { position: fixed; left: 0; top: 0; width: 620px; height: 620px; margin: -310px 0 0 -310px; z-index: -1; border-radius: 9999px; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle, var(--glow-color), transparent 64%); transform: translate3d(var(--px, -999px), var(--py, -999px), 0); transition: opacity 0.35s ease; }
+html[data-fx="on"] .cursor-glow { opacity: 1; }
+
+/* Spotlight cards: a light and a 1px edge glow that follow the pointer across a card. */
+.spot { position: relative; isolation: isolate; }
+.spot::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity 0.25s ease;
+  background: radial-gradient(440px circle at var(--mx, 50%) var(--my, 50%), var(--spot-color), transparent 58%); }
+.spot::after { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; padding: 1px; pointer-events: none; opacity: 0; transition: opacity 0.25s ease;
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), var(--spot-edge), transparent 62%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.spot:hover::before, .spot:hover::after { opacity: 1; }
+
+/* Gentle 3D tilt that follows the pointer. */
+[data-tilt] { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform 0.22s ease-out; will-change: transform; }
+@media (prefers-reduced-motion: reduce), (pointer: coarse) { [data-tilt] { transform: none !important; } .cursor-glow { display: none; } }
+
+/* Glass surfaces and primary actions in the dark theme */
+html.dark .bg-white { background-color: rgba(255, 255, 255, 0.045); }
+html.dark .bg-paper { background-color: transparent; }
+html.dark .bg-paper\/60, html.dark .bg-paper\/70 { background-color: rgba(255, 255, 255, 0.035); }
+html.dark .bg-paper\/85 { background-color: rgba(8, 14, 30, 0.72); }
+html.dark .hover\:bg-paper:hover, html.dark .hover\:bg-paper\/60:hover { background-color: rgba(255, 255, 255, 0.06); }
+html.dark .has-\[\:checked\]\:bg-paper:has(:checked) { background-color: rgba(255, 255, 255, 0.07); }
+html.dark .text-navy-900 { color: #eef3fc; }
+html.dark .hover\:text-navy-900:hover { color: #ffffff; }
+html.dark .bg-navy-900\/5, html.dark .hover\:bg-navy-900\/5:hover { background-color: rgba(255, 255, 255, 0.06); }
+html.dark .bg-navy-900\/10 { background-color: rgba(255, 255, 255, 0.10); }
+html.dark aside[aria-label="Sidebar"] { background: linear-gradient(180deg, rgba(10, 18, 40, 0.92), rgba(6, 12, 28, 0.94)); background-image: linear-gradient(180deg, rgba(10, 18, 40, 0.92), rgba(6, 12, 28, 0.94)); box-shadow: none; border-right: 1px solid var(--color-line); backdrop-filter: blur(16px); }
+aside[aria-label="Sidebar"] { border-right: 1px solid rgba(255, 255, 255, 0.04); }
+html.dark ::selection { background: rgba(96, 140, 255, 0.35); color: #fff; }
+html.dark .recharts-tooltip-cursor { fill: rgba(255, 255, 255, 0.05); }
+html.dark input, html.dark select, html.dark textarea { color-scheme: dark; }
+.btn-press { transition: transform 0.12s ease, box-shadow 0.2s ease, background-color 0.15s ease; } .btn-press:active { transform: scale(0.975); }
+/* A soft pulse for "Live" indicators */
+@keyframes live-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55); } 50% { box-shadow: 0 0 0 5px rgba(52, 211, 153, 0); } }
+.live-dot { animation: live-pulse 2s ease-out infinite; }
+/* Severity glows for alert cards (dark control-room feel) */
+.glow-red { box-shadow: var(--shadow-card), -3px 0 0 0 rgba(255, 92, 80, 0.85), -10px 0 32px -10px rgba(255, 92, 80, 0.45); }
+.glow-amber { box-shadow: var(--shadow-card), -3px 0 0 0 rgba(247, 176, 56, 0.85), -10px 0 32px -12px rgba(247, 176, 56, 0.35); }
+.glow-blue { box-shadow: var(--shadow-card), -3px 0 0 0 rgba(96, 140, 255, 0.8), -10px 0 32px -12px rgba(96, 140, 255, 0.35); }
+/* The -100 tints become translucent backgrounds in the dark theme; where they are used as TEXT they stay light. */
+html.dark .text-teal-100 { color: #c8f5ef; } html.dark .text-blue-100 { color: #dbe7ff; } html.dark .text-amber-100 { color: #fbe9c4; }
+html.dark .text-red-100 { color: #ffd9d4; } html.dark .text-green-100 { color: #cdf5e1; }
+
+
+/* =====================================================================================================
+   Reference look (aiopstool / Partnerly): accent swatches, pill buttons, floating glass bar, italic accents.
+   ===================================================================================================== */
+html, html[data-accent="violet"] { --a1: #cdbfff; --a2: #a78bfa; --a3: #6d28d9; --a-glow: 139, 92, 246; }
+html[data-accent="teal"] { --a1: #a7f3e4; --a2: #5eead4; --a3: #0f766e; --a-glow: 45, 212, 191; }
+html[data-accent="blue"] { --a1: #c7dcff; --a2: #8db8ff; --a3: #1d4ed8; --a-glow: 59, 130, 246; }
+html[data-accent="pink"] { --a1: #fcd0e8; --a2: #f7a8d2; --a3: #be185d; --a-glow: 236, 72, 153; }
+html[data-accent="gold"] { --a1: #f8e3a6; --a2: #e9c46a; --a3: #8a5a0b; --a-glow: 212, 166, 74; }
+html { --a-text: var(--a3); --spot-color: rgba(var(--a-glow), 0.09); --spot-edge: rgba(var(--a-glow), 0.45); --glow-color: rgba(var(--a-glow), 0.10); }
+html.dark { --a-text: var(--a1); --spot-color: rgba(var(--a-glow), 0.12); --spot-edge: rgba(var(--a-glow), 0.6); --glow-color: rgba(var(--a-glow), 0.16); }
+
+/* Background: accent light from the top and a faint grid, as in the reference */
+body::before { background: radial-gradient(60% 45% at 18% -6%, rgba(var(--a-glow), 0.14), transparent 62%), radial-gradient(40% 35% at 92% 8%, rgba(var(--a-glow), 0.08), transparent 62%) !important; }
+html.dark body::before { background: radial-gradient(60% 48% at 18% -6%, rgba(var(--a-glow), 0.30), transparent 62%), radial-gradient(45% 40% at 95% 12%, rgba(var(--a-glow), 0.14), transparent 62%), radial-gradient(70% 50% at 50% 115%, rgba(var(--a-glow), 0.10), transparent 62%) !important; }
+body::after { content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none; opacity: 0.55;
+  background-image: linear-gradient(rgba(10, 31, 61, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(10, 31, 61, 0.05) 1px, transparent 1px); background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 85%); mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 85%); }
+html.dark body::after { background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px); opacity: 1; }
+
+/* Primary actions: pastel accent gradient pills with dark text (both themes) */
+html .bg-navy-900 { background-image: linear-gradient(135deg, var(--a1), var(--a2)); background-color: var(--a2); color: #120d24; box-shadow: 0 8px 26px -10px rgba(var(--a-glow), 0.85); }
+html .bg-navy-900 svg { color: #120d24; }
+html .hover\:bg-navy-800:hover { filter: brightness(1.06) saturate(1.1); }
+html.dark .border-navy-900, html .border-navy-900 { border-color: rgba(var(--a-glow), 0.75); }
+:focus-visible { outline-color: var(--a2); }
+html:not(.dark) :focus-visible { outline-color: var(--a3); }
+
+/* Italic serif accent phrase (headline "Start a decision run.") and mono status line */
+.display-accent { font-family: var(--font-display); font-style: italic; font-weight: 400; letter-spacing: -0.01em; color: var(--a-text); font-size: 1.12em; line-height: 0.9; padding-right: 0.06em; }
+.eyebrow { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.02em; }
+
+/* Floating glass navigation bar */
+.glass-bar { background: rgba(255, 255, 255, 0.72); border: 1px solid var(--color-line); backdrop-filter: blur(18px) saturate(150%); -webkit-backdrop-filter: blur(18px) saturate(150%); box-shadow: 0 12px 40px -24px rgba(10, 31, 61, 0.35); }
+html.dark .glass-bar { background: rgba(20, 20, 28, 0.58); border-color: rgba(255, 255, 255, 0.11); box-shadow: 0 14px 44px -22px rgba(0, 0, 0, 0.85); }
+.nav-pill { border: 1px solid transparent; }
+.nav-pill[aria-current="page"] { border-color: rgba(var(--a-glow), 0.55); background: rgba(var(--a-glow), 0.08); box-shadow: 0 0 22px -10px rgba(var(--a-glow), 0.9); }
+.no-scrollbar { scrollbar-width: none; } .no-scrollbar::-webkit-scrollbar { display: none; }
+.orb { background: radial-gradient(circle at 32% 28%, #ffffff 0, var(--a1) 22%, var(--a2) 55%, var(--a3) 100%); box-shadow: 0 0 22px -4px rgba(var(--a-glow), 0.85); }
+.accent-tile { background: linear-gradient(135deg, var(--a1), var(--a2)); color: #120d24; box-shadow: 0 10px 30px -10px rgba(var(--a-glow), 0.9); }
+.accent-badge { background: linear-gradient(135deg, var(--a2), var(--a3)); color: #fff; }
+.accent-border { border-color: rgba(var(--a-glow), 0.55) !important; }
+.sheet-dark { background: #0c0c12 !important; }
+html .ring-navy-900 { --tw-ring-color: rgba(var(--a-glow), 0.75); }
+
+/* Ownership watermark: repeated, rotated, faint. It sits above the content but ignores the pointer,
+   and it is a background image, so it adds no text for screen readers and cannot be selected away. */
+.watermark { position: fixed; inset: 0; z-index: 70; pointer-events: none; opacity: 0.09;
+  background-repeat: repeat; background-size: 460px 240px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='460' height='240'><text x='230' y='125' text-anchor='middle' transform='rotate(-22 230 120)' font-family='Inter, Arial, sans-serif' font-size='15' font-weight='600' fill='%23808597'>%C2%A9 2026 Heeya-Code %C2%B7 APAAR Nexus %C2%B7 All rights reserved</text></svg>"); }
+html.dark .watermark { opacity: 0.11; }
+@media print { .watermark { opacity: 0.22; } }

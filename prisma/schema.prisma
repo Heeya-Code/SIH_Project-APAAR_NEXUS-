@@ -1,0 +1,706 @@
+// APAAR NEXUS - central repository schema.
+//
+// Design rules:
+//  1. PII lives ONLY in StudentIdentity (encrypted at rest). Analytics tables
+//     (Student, Enrolment, ...) carry keyed-HMAC references, never raw identifiers.
+//  2. Cross-institution matching uses HMAC hashes (apaarHmac, matchKey, dobKey).
+//  3. Duplicates are FLAGGED for human review. Records are never auto-merged.
+//  4. AuditLog is append-only (DB trigger) and hash-chained (tamper-evident).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  SUPER_ADMIN
+  AICTE_ADMIN
+  REGIONAL_OFFICER
+  INSTITUTION_ADMIN
+  DATA_ENTRY_OPERATOR
+  STUDENT
+  VERIFIER
+}
+
+enum Region {
+  NORTH
+  SOUTH
+  EAST
+  WEST
+  CENTRAL
+  NORTH_EAST
+}
+
+enum InstitutionType {
+  GOVERNMENT
+  GOVT_AIDED
+  PRIVATE
+  UNIVERSITY_DEPARTMENT
+  DEEMED
+}
+
+enum ProgrammeLevel {
+  DIPLOMA
+  UG
+  PG
+  PGDM
+  MBA
+  MCA
+}
+
+enum ApprovalStatus {
+  APPROVED
+  CONDITIONAL
+  WITHDRAWN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+// Structural state of the submitted APAAR ID (tier 1 of the 3-tier identity model)
+enum ApaarFormatStatus {
+  MISSING
+  INVALID_FORMAT
+  WELL_FORMED
+}
+
+enum VerificationStatus {
+  PENDING
+  STRUCTURALLY_VALID
+  FLAGGED_DUPLICATE
+  UNDER_REVIEW
+  REJECTED
+}
+
+enum EnrolmentStatus {
+  ENROLLED
+  WITHDRAWN
+  GRADUATED
+}
+
+enum SubmissionStatus {
+  UPLOADED
+  VALIDATING
+  VALIDATED
+  NEEDS_CORRECTION
+  ACCEPTED
+  REJECTED
+  SUPERSEDED
+}
+
+enum ValidationOutcome {
+  VALID
+  WARNING
+  REQUIRES_REVIEW
+  REJECTED
+}
+
+enum DuplicateKind {
+  EXACT_APAAR
+  NORMALISED_APAAR
+  POTENTIAL_MATCH
+  CONFLICTING_IDENTITY
+  WITHIN_INSTITUTION
+}
+
+enum AlertStatus {
+  OPEN
+  UNDER_REVIEW
+  CONFIRMED
+  DISMISSED
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskBand {
+  LOW
+  MODERATE
+  HIGH
+  CRITICAL
+}
+
+enum ConsentScope {
+  NAME
+  INSTITUTION
+  PROGRAMME
+  ADMISSION_YEAR
+  ENROLMENT_STATUS
+}
+
+enum CorrectionStatus {
+  OPEN
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum ConsentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  REVOKED
+}
+
+enum VerificationMethod {
+  QR_SCAN
+  CREDENTIAL_ID
+}
+
+enum VerificationResult {
+  VALID
+  REVOKED
+  EXPIRED
+  NOT_FOUND
+  SIGNATURE_INVALID
+  CONSENT_DENIED
+}
+
+// ---------------------------------------------------------------------------
+// Institutions and academic structure
+// ---------------------------------------------------------------------------
+
+model Institution {
+  id              String          @id @default(uuid())
+  slug            String          @unique
+  aicteId         String          @unique
+  name            String
+  shortName       String
+  type            InstitutionType
+  state           String // ISO 3166-2:IN code, e.g. "MH"
+  stateName       String
+  city            String
+  district        String?
+  region          Region
+  establishedYear Int
+  isDemo          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+
+  approvals   InstitutionApproval[]
+  departments Department[]
+  programmes  Programme[]
+  intakes     ApprovedIntake[]
+  students    Student[]
+  enrolments  Enrolment[]
+  submissions DataSubmission[]
+  users       User[]
+  credentials DigitalCredential[]
+  anomalies   AnomalyAlert[]
+  riskScores  RiskScore[]
+
+  @@index([state])
+  @@index([region])
+  @@index([type])
+}
+
+model InstitutionApproval {
+  id            String         @id @default(uuid())
+  institutionId String
+  academicYear  String // "2026-27"
+  status        ApprovalStatus
+  referenceNo   String
+  validFrom     DateTime
+  validTo       DateTime
+  remarks       String?
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@unique([institutionId, academicYear])
+}
+
+model Department {
+  id            String @id @default(uuid())
+  institutionId String
+  name          String
+  code          String
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  programmes  Programme[]
+  enrolments  Enrolment[]
+
+  @@unique([institutionId, code])
+}
+
+model Programme {
+  id            String         @id @default(uuid())
+  institutionId String
+  departmentId  String
+  code          String
+  name          String
+  level         ProgrammeLevel
+  durationYears Int
+
+  institution Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  department  Department       @relation(fields: [departmentId], references: [id])
+  intakes     ApprovedIntake[]
+  enrolments  Enrolment[]
+
+  @@unique([institutionId, code])
+  @@index([departmentId])
+}
+
+model ApprovedIntake {
+  id            String @id @default(uuid())
+  institutionId String
+  programmeId   String
+  academicYear  String
+  baseIntake    Int
+  approvalRef   String?
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  programme   Programme   @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+
+  @@unique([programmeId, academicYear])
+  @@index([institutionId, academicYear])
+}
+
+// Admission categories are configuration, not code.
+model AdmissionCategory {
+  code           String  @id // GEN, OBC, SC, ST, EWS, NRI, OCI, FN, TFWS
+  name           String
+  isSupernumerary Boolean @default(false)
+  sortOrder      Int     @default(0)
+
+  enrolments Enrolment[]
+}
+
+// Configurable regulatory rules (read by the compliance engine in a later stage).
+model ComplianceRule {
+  id          String        @id @default(uuid())
+  code        String        @unique
+  name        String
+  description String
+  kind        String // SUPERNUMERARY_CAP | INTAKE_LIMIT | ...
+  parameters  Json
+  severity    ValidationOutcome
+  active      Boolean       @default(true)
+  source      String // provenance / disclaimer
+}
+
+// ---------------------------------------------------------------------------
+// Students (analytics-safe) and identity vault (PII)
+// ---------------------------------------------------------------------------
+
+model Student {
+  id                    String             @id @default(uuid())
+  institutionId         String
+  localStudentId        String // institution roll / enrolment number
+  apaarHmac             String? // HMAC-SHA256(pepper, normalised APAAR ID)
+  apaarFormat           ApaarFormatStatus
+  apaarNormalised       Boolean            @default(false) // submitted value needed normalising
+  verification          VerificationStatus @default(PENDING)
+  authoritativeVerified Boolean            @default(false) // tier 3: always false without authorised API access
+  gender                Gender
+  birthYear             Int
+  matchKey              String? // HMAC(normalised name | DOB) - exact identity-match key
+  dobKey                String? // HMAC(DOB) - blocking key for fuzzy matching
+  verifyCode            String?            @unique // short code a student shares so a verifier can REQUEST consent; reveals nothing by itself
+  isDemo                Boolean            @default(true)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  institution        Institution         @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  identity           StudentIdentity?
+  enrolments         Enrolment[]
+  user               User?
+  credentials        DigitalCredential[]
+  consents           ConsentRecord[]
+  correctionRequests CorrectionRequest[]
+  consentRequests    ConsentRequest[]
+  dupAlertsA         DuplicateAlert[]    @relation("DupA")
+  dupAlertsB         DuplicateAlert[]    @relation("DupB")
+
+  @@unique([institutionId, localStudentId])
+  @@index([apaarHmac])
+  @@index([matchKey])
+  @@index([dobKey])
+  @@index([institutionId])
+  @@index([apaarFormat])
+}
+
+// PII vault. Every *Enc column is AES-256-GCM ciphertext ("v1:iv.tag.ct", base64url).
+model StudentIdentity {
+  studentId         String  @id
+  fullNameEnc       String
+  dobEnc            String
+  apaarEnc          String? // normalised APAAR ID (null if missing)
+  apaarSubmittedEnc String? // value exactly as submitted
+  apaarMasked       String? // display-safe, e.g. "•••• •••• 3421"
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Enrolment {
+  id            String          @id @default(uuid())
+  studentId     String
+  institutionId String
+  programmeId   String
+  departmentId  String
+  academicYear  String // year of admission, "2025-26"
+  admissionYear Int // 2025
+  categoryCode  String
+  status        EnrolmentStatus @default(ENROLLED)
+  submissionId  String?
+  createdAt     DateTime        @default(now())
+
+  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  institution Institution       @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  programme   Programme         @relation(fields: [programmeId], references: [id])
+  department  Department        @relation(fields: [departmentId], references: [id])
+  category    AdmissionCategory @relation(fields: [categoryCode], references: [code])
+  submission  DataSubmission?   @relation(fields: [submissionId], references: [id])
+  credentials DigitalCredential[]
+
+  @@unique([studentId, programmeId, academicYear])
+  @@index([institutionId, academicYear])
+  @@index([programmeId, academicYear])
+  @@index([categoryCode])
+  @@index([submissionId])
+}
+
+// ---------------------------------------------------------------------------
+// Submissions and validation (workflow arrives in Stage 3)
+// ---------------------------------------------------------------------------
+
+model DataSubmission {
+  id            String           @id @default(uuid())
+  institutionId String
+  academicYear  String
+  version       Int
+  parentId      String?
+  status        SubmissionStatus
+  fileName      String?
+  fileSha256    String?
+  rowCount      Int              @default(0)
+  validCount    Int              @default(0)
+  warningCount  Int              @default(0)
+  reviewCount   Int              @default(0)
+  rejectedCount Int              @default(0)
+  uploadedById  String?
+  notes         String?
+  source        String           @default("UPLOAD")
+  createdAt     DateTime         @default(now())
+  validatedAt   DateTime?
+  submittedAt   DateTime?
+  acceptedAt    DateTime?
+
+  institution Institution       @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  parent      DataSubmission?   @relation("Resubmission", fields: [parentId], references: [id])
+  children    DataSubmission[]  @relation("Resubmission")
+  staged      StagedRecord[]
+  issues      ValidationIssue[]
+  enrolments  Enrolment[]
+
+  @@unique([institutionId, academicYear, version])
+  @@index([institutionId, status])
+}
+
+// Staging rows hold the raw upload, encrypted (it contains PII).
+model StagedRecord {
+  id           String            @id @default(uuid())
+  submissionId String
+  rowNumber    Int
+  payloadEnc   String
+  outcome      ValidationOutcome @default(VALID)
+  disposition  String            @default("PENDING") // PENDING | ACCEPTED | HELD | SKIPPED
+  rowKey       String? // keyed hash of institution + student ref + year: idempotency key
+  enrolmentId  String? // set once the row has produced an enrolment
+
+  submission DataSubmission    @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  issues     ValidationIssue[]
+
+  @@unique([submissionId, rowNumber])
+}
+
+model ValidationIssue {
+  id             String            @id @default(uuid())
+  submissionId   String
+  stagedRecordId String?
+  severity       ValidationOutcome
+  code           String
+  field          String?
+  category       String            @default("DATA") // DUPLICATE | APAAR | INTAKE | DATA | CROSS_INSTITUTION
+  message        String // why it was flagged
+  fixHint        String // how to correct it
+  createdAt      DateTime          @default(now())
+
+  submission   DataSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  stagedRecord StagedRecord?  @relation(fields: [stagedRecordId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, severity])
+  @@index([code])
+}
+
+// ---------------------------------------------------------------------------
+// Intelligence (engines arrive in Stages 4 and 6)
+// ---------------------------------------------------------------------------
+
+model DuplicateAlert {
+  id            String        @id @default(uuid())
+  kind          DuplicateKind
+  score         Float
+  studentAId    String
+  studentBId    String
+  institutionAId String
+  institutionBId String
+  apaarHmac     String?
+  evidence      Json // which fields matched and why (never raw identifiers)
+  status        AlertStatus   @default(OPEN)
+  reviewedById  String?
+  reviewNote    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime      @default(now())
+
+  studentA Student @relation("DupA", fields: [studentAId], references: [id], onDelete: Cascade)
+  studentB Student @relation("DupB", fields: [studentBId], references: [id], onDelete: Cascade)
+
+  @@unique([studentAId, studentBId, kind])
+  @@index([status])
+  @@index([institutionAId])
+  @@index([institutionBId])
+}
+
+model AnomalyAlert {
+  id            String        @id @default(uuid())
+  institutionId String
+  academicYear  String
+  kind          String
+  severity      AlertSeverity
+  score         Float
+  detector      String // e.g. RULE_BASED_v1 - never presented as a trained model
+  explanation   Json
+  status        AlertStatus   @default(OPEN)
+  reviewedById  String?
+  reviewNote    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime      @default(now())
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@index([institutionId, academicYear])
+  @@index([status])
+}
+
+model RiskScore {
+  id                String      @id @default(uuid())
+  institutionId     String
+  academicYear      String
+  score             Float // 0-100
+  band              RiskBand
+  factors           Json // named, weighted contributions
+  recommendedAction String
+  engine            String // e.g. RULE_BASED_v1
+  computedAt        DateTime    @default(now())
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@unique([institutionId, academicYear, engine])
+}
+
+// ---------------------------------------------------------------------------
+// Credentials, consent, verification (Stages 5 and 7)
+// ---------------------------------------------------------------------------
+
+model DigitalCredential {
+  id            String    @id // public credential ID, e.g. NX-7K3D-9QW2-XM41
+  studentId     String
+  enrolmentId   String
+  institutionId String
+  kind          String
+  payload       Json // minimal claims that are signed
+  payloadSha256 String
+  signature     String
+  keyId         String
+  issuedAt      DateTime  @default(now())
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  revokeReason  String?
+  isDemo        Boolean   @default(true)
+
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  enrolment   Enrolment   @relation(fields: [enrolmentId], references: [id], onDelete: Cascade)
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  verifications VerificationRequest[]
+  consentRequest ConsentRequest?
+
+  @@index([studentId])
+}
+
+model ConsentRecord {
+  id         String       @id @default(uuid())
+  studentId  String
+  scope      ConsentScope
+  granteeOrg String? // null = any authenticated verifier
+  grantedAt  DateTime     @default(now())
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+}
+
+// One row per verification request. This IS the Student Consent Log: who asked, why, which fields,
+// what the student decided, and when. Login is never treated as consent.
+model ConsentRequest {
+  id               String        @id @default(uuid())
+  reference        String        @unique // human-quotable, e.g. CR-7K3D-9QW2
+  verifierUserId   String
+  verifierOrg      String
+  studentId        String
+  purpose          String
+  requestedFields  Json // string[]
+  approvedFields   Json? // string[] (a subset of requested; set on approval)
+  status           ConsentStatus @default(PENDING)
+  decisionNote     String?
+  requestExpiresAt DateTime // an unanswered request lapses
+  validUntil       DateTime? // how long an approved verification stays valid
+  createdAt        DateTime      @default(now())
+  decidedAt        DateTime?
+  revokedAt        DateTime?
+  credentialId     String?       @unique
+
+  student    Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  verifier   User               @relation(fields: [verifierUserId], references: [id])
+  credential DigitalCredential? @relation(fields: [credentialId], references: [id])
+
+  @@index([studentId, status])
+  @@index([verifierUserId, createdAt])
+}
+
+model CorrectionRequest {
+  id            String           @id @default(uuid())
+  studentId     String
+  field         String
+  requestedNote String
+  status        CorrectionStatus @default(OPEN)
+  reviewedById  String?
+  reviewNote    String?
+  createdAt     DateTime         @default(now())
+  resolvedAt    DateTime?
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([status])
+}
+
+model VerificationRequest {
+  id                String             @id @default(uuid())
+  verifierUserId    String
+  credentialId      String?
+  credentialIdQuery String
+  method            VerificationMethod
+  result            VerificationResult
+  disclosedFields   Json
+  purpose           String?
+  ipHash            String?
+  createdAt         DateTime           @default(now())
+
+  credential DigitalCredential? @relation(fields: [credentialId], references: [id])
+  verifier   User               @relation(fields: [verifierUserId], references: [id])
+
+  @@index([verifierUserId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Platform: users, sessions, audit, notifications
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String
+  passwordHash  String
+  role          Role
+  institutionId String?
+  region        Region?
+  studentId     String?   @unique
+  organisation  String? // verifier organisation
+  isActive      Boolean   @default(true)
+  failedLogins  Int       @default(0)
+  lockedUntil   DateTime?
+  lastLoginAt   DateTime?
+  isDemo        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+
+  institution   Institution?          @relation(fields: [institutionId], references: [id])
+  student       Student?              @relation(fields: [studentId], references: [id])
+  sessions      Session[]
+  notifications Notification[]
+  verifications VerificationRequest[]
+  consentRequests ConsentRequest[]
+
+  @@index([institutionId])
+  @@index([role])
+}
+
+model Session {
+  id            String    @id @default(uuid())
+  userId        String
+  tokenHash     String    @unique // SHA-256 of the cookie token; the token itself is never stored
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime
+  lastSeenAt    DateTime  @default(now())
+  revokedAt     DateTime?
+  revokedReason String?
+  ipHash        String?
+  userAgent     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Append-only + hash-chained. See migration 0002 for the immutability trigger.
+model AuditLog {
+  seq           BigInt   @id @default(autoincrement())
+  createdAt     DateTime @default(now())
+  actorUserId   String?
+  actorRole     Role?
+  action        String
+  entityType    String?
+  entityId      String?
+  institutionId String?
+  outcome       String // SUCCESS | DENIED | FAILURE
+  metadata      Json?
+  ipHash        String?
+  prevHash      String
+  hash          String   @unique
+
+  @@index([action])
+  @@index([institutionId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  kind      String
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}

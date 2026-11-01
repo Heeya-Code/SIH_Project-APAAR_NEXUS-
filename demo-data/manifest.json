@@ -1,0 +1,66 @@
+{
+  "note": "Synthetic data only. 'expected' is what the validation engine must report for these files on a freshly seeded database.",
+  "institution": "Sahyadri Institute of Technology (admin@sahyadri.demo), academic year 2026-27",
+  "rows": 100,
+  "nriRows": 16,
+  "previousYearNri": 5,
+  "mechanicalRows": 84,
+  "expected": {
+    "firstUpload": {
+      "total": 100,
+      "rejected": 17,
+      "requiresReview": 7,
+      "warnings": 3,
+      "valid": 73,
+      "skipped": 0,
+      "rowsByCategory": {
+        "DUPLICATE": 3,
+        "APAAR": 7,
+        "DATA": 9,
+        "CROSS_INSTITUTION": 5
+      },
+      "intake": {
+        "programme": "ME",
+        "approved": 60,
+        "inThisFile": 67,
+        "overshoot": 7
+      }
+    },
+    "correctedUpload": {
+      "total": 100,
+      "rejected": 0,
+      "skipped": 83,
+      "valid": 17,
+      "finalStatus": "ACCEPTED",
+      "intake": {
+        "programme": "ME",
+        "alreadyOnFile": 67,
+        "inThisFile": 17,
+        "overshoot": 24
+      }
+    },
+    "crossInstitutionAlertsCreatedOnSubmit": 5,
+    "nriSpikeAlertExpected": true
+  },
+  "defects": {
+    "DUP_APAAR": 2,
+    "DUP_REF": 1,
+    "APAAR_SHORT": 1,
+    "APAAR_LETTERS": 1,
+    "APAAR_LONG": 1,
+    "APAAR_PLACEHOLDER": 1,
+    "APAAR_MISSING": 3,
+    "BAD_DOB_FEB30": 1,
+    "BAD_DOB_MONTH13": 1,
+    "UNKNOWN_PROG": 1,
+    "WRONG_AY": 1,
+    "BAD_GENDER": 1,
+    "BAD_CATEGORY": 1,
+    "YEAR_CONFLICT": 1,
+    "XINST_SAME_PERSON": 3,
+    "XINST_POTENTIAL": 1,
+    "XINST_SAME_ID_DIFFERENT": 1,
+    "AGE_IMPLAUSIBLE": 2,
+    "APAAR_SEPARATORS": 3
+  }
+}
