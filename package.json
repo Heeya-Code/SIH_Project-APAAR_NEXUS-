@@ -5,6 +5,7 @@
   "description": "APAAR NEXUS - National Academic Identity & Intelligence Network (SIH 2026, PS SIH26263). Prototype; all data synthetic.",
   "scripts": {
     "dev": "next dev",
+    "postinstall": "prisma generate",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
